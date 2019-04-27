@@ -107,6 +107,7 @@ void dealWithClient(int fd) {
     printf("Sending cached object\n");
     Rio_writen(fd, cache.headers, cache.headersSize);
     Rio_writen(fd, cache.object, cache.objectSize);
+    printf("Finished sending cached object\n");
 
 //    free(cacheHeaderBuf);
 //    free(cacheObjectBuf);
