@@ -79,13 +79,13 @@ void dealWithClient(int fd) {
   sscanf(buf, "%s %s %s", method, uri, version);
 
   // CACHE
-  if (cache.uri != NULL && strcmp(cache.uri, uri) == 0) {
+  if (strcmp(cache.uri, uri) == 0) {
     printf("Sending cached object=\n");
     Rio_writen(fd, cache.headers, cache.headersSize);
     Rio_writen(fd, cache.object, cache.objectSize);
 
-    free(cacheHeaderBuf);
-    free(cacheObjectBuf);
+//    free(cacheHeaderBuf);
+//    free(cacheObjectBuf);
     return;
   }
 
@@ -147,8 +147,8 @@ void dealWithClient(int fd) {
     cache.objectSize = objectSize;
   }
 
-  free(cacheHeaderBuf);
-  free(cacheObjectBuf);
+//  free(cacheHeaderBuf);
+//  free(cacheObjectBuf);
 
   Close(serverFD);
 }
