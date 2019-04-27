@@ -2,7 +2,15 @@
 #include "csapp.h"
 
 #define MAX_OBJECT_SIZE 7204056
+
+struct Cache {
+    char uri[MAXLINE];
+    char object[MAX_OBJECT_SIZE];
+    size_t objectSize;
+};
+
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
+static struct Cache cache;
 
 void dealWithClient(int);
 void read_requesthdrs(rio_t *rp);
@@ -41,19 +49,21 @@ int main(int argc, char **argv) {
 }
 
 void dealWithClient(int fd) {
-  struct stat sbuf;
   int serverFD;
-  char httpHeaderBuf[MAXLINE], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+  char cacheBuf[MAX_OBJECT_SIZE], httpHeaderBuf[MAXLINE], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char hostname[MAXLINE], port[MAXLINE], path[MAXLINE];
   rio_t rio, rio_server;
+  size_t n = 0, bufSize = 0;
 
   /* Read request line and headers */
   rio_readinitb(&rio, fd);
   if (!rio_readlineb(&rio, buf, MAXLINE)) {  //line:netp:doit:readrequest
     return;
   }
-  // (FINISHED)
   sscanf(buf, "%s %s %s", method, uri, version);
+  if (strcmp(cache.uri, uri) == 0) {
+    Rio_writen(fd, cache.object, cache.objectSize);
+  }
   printf("Method: %s\nURI: %s\nVersion: %s\n", method, uri, version);
   // Method must be GET (FINISHED)
   if (strcasecmp(method, "GET")) {
@@ -72,16 +82,23 @@ void dealWithClient(int fd) {
   rio_writen(serverFD, httpHeaderBuf, strlen(httpHeaderBuf));
   rio_readinitb(&rio_server, serverFD);
 
-
-
-
-
-  size_t n;
-  while((n=Rio_readlineb(&rio_server,buf,MAXLINE))!=0)
+  // TODO: FIGURE OUT HOW THIS WORKS
+  while((n = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0)
   {
-    printf("proxy received %d bytes,then send\n",n);
+    bufSize += n;
+    printf("BufSize: %zu\n",bufSize);
+    if (bufSize < MAX_OBJECT_SIZE) {
+      sscanf(cacheBuf, "%s%s", cacheBuf, buf);
+    }
     Rio_writen(fd,buf,n);
   }
+
+  if (bufSize < MAX_OBJECT_SIZE) {
+    strcpy(cache.uri, uri);
+    strcpy(cache.object, cacheBuf);
+    cache.objectSize = bufSize;
+  }
+
   Close(serverFD);
 }
 
