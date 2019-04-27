@@ -63,6 +63,7 @@ void dealWithClient(int fd) {
   sscanf(buf, "%s %s %s", method, uri, version);
   if (strcmp(cache.uri, uri) == 0) {
     Rio_writen(fd, cache.object, cache.objectSize);
+    return;
   }
   printf("Method: %s\nURI: %s\nVersion: %s\n", method, uri, version);
   // Method must be GET (FINISHED)
