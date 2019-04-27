@@ -62,6 +62,7 @@ void dealWithClient(int fd) {
   }
   sscanf(buf, "%s %s %s", method, uri, version);
   if (strcmp(cache.uri, uri) == 0) {
+    printf("Cached response\n");
     Rio_writen(fd, cache.object, cache.objectSize);
     return;
   }
@@ -89,11 +90,11 @@ void dealWithClient(int fd) {
     bufSize += n;
     printf("BufSize: %zu\n",bufSize);
     if (bufSize < MAX_OBJECT_SIZE) {
-      sscanf(cacheBuf, "%s%s", cacheBuf, buf);
+      strcat(cacheBuf, buf);
     }
     Rio_writen(fd,buf,n);
   }
-
+  
   if (bufSize < MAX_OBJECT_SIZE) {
     strcpy(cache.uri, uri);
     strcpy(cache.object, cacheBuf);
