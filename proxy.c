@@ -24,8 +24,8 @@ void initCache();
 void clearCache();
 
 int main(int argc, char **argv) {
-  int listenfd, connfd;
-  char hostname[MAXLINE], port[MAXLINE];
+  int listenfd = 0, connfd = 0;
+  char hostname[MAXLINE] = "", port[MAXLINE] = "";
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
 
@@ -42,13 +42,12 @@ int main(int argc, char **argv) {
   listenfd = Open_listenfd(argv[1]); // Quiting here is ok
   while (1) {
     clientlen = sizeof(clientaddr);
-    // TODO: Create own wrapper functions that handler errors
+
     connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
     Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE,
                 port, MAXLINE, 0);
     printf("Accepted connection from (%s, %s)\n", hostname, port);
 
-    // TODO: What im currently implementing
     dealWithClient(connfd);
 
     Close(connfd);                                            //line:netp:tiny:close
@@ -71,10 +70,11 @@ void clearCache() {
 }
 
 void dealWithClient(int fd) {
-  int serverFD;
-  char httpHeaderBuf[MAXLINE], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-  char hostname[MAXLINE], port[MAXLINE], path[MAXLINE];
-  char uriPortPath[MAXLINE];
+  int serverFD = 0;
+  char httpHeaderBuf[MAXLINE] = "", buf[MAXLINE] = "";
+  char method[MAXLINE] = "", uri[MAXLINE] = "", version[MAXLINE] = "";
+  char hostname[MAXLINE] = "", port[MAXLINE] = "", path[MAXLINE] = "";
+  char uriPortPath[MAXLINE] = "";
   rio_t rio, rio_server;
   size_t bytesRead = 0, headersSize = 0, objectSize = 0, bufSize = 0;
   char *cacheHeaderBuf = malloc(MAX_OBJECT_SIZE), *cacheObjectBuf = malloc(MAX_OBJECT_SIZE);
@@ -89,7 +89,7 @@ void dealWithClient(int fd) {
 
   sscanf(buf, "%s %s %s", method, uri, version);
 
-  // Method must be GET (FINISHED)
+  // Method must be GET
   if (strcasecmp(method, "GET")) {
     clienterror(fd, method, "501", "Not Implemented",
                 "Tiny does not implement this method");
@@ -109,8 +109,8 @@ void dealWithClient(int fd) {
     Rio_writen(fd, cache.object, cache.objectSize);
     printf("Finished sending cached object\n");
 
-//    free(cacheHeaderBuf);
-//    free(cacheObjectBuf);
+    free(cacheHeaderBuf);
+    free(cacheObjectBuf);
     return;
   }
 
@@ -126,6 +126,7 @@ void dealWithClient(int fd) {
     headersSize += bytesRead;
     bufSize += bytesRead;
 
+    printf("Bytes sent: %zu\n", bufSize);
     Rio_writen(fd, buf, bytesRead);
 
     if (bufSize < MAX_OBJECT_SIZE) {
@@ -143,6 +144,7 @@ void dealWithClient(int fd) {
     objectSize += bytesRead;
     bufSize += bytesRead;
 
+    printf("Bytes sent: %zu\n", bufSize);
     Rio_writen(fd, buf, bytesRead);
 
     if (bufSize < MAX_OBJECT_SIZE) {
@@ -158,17 +160,12 @@ void dealWithClient(int fd) {
     cache.headersSize = headersSize;
     memcpy(cache.object, cacheObjectBuf, objectSize);
     cache.objectSize = objectSize;
-
-    printf("/// CACHE URI ///\n%s\n/// CACHE URI ///\n/// URI ///\n%s\n/// CACHE URI ///\n", cache.uri, uriPortPath);
-    printf("/// HEADERS BEGIN HERE ///\n%s\n/// HEADERS END HERE ///\n"
-           "/// OBJECT BEGINS HERE ///\n%s\n/// OBJECT ENDS HERE ///\n"
-           "%zu\n%zu\n", cache.headers, cache.object, cache.headersSize, cache.objectSize);
   }
-
-//  free(cacheHeaderBuf);
-//  free(cacheObjectBuf);
-
+  
   Close(serverFD);
+
+  free(cacheHeaderBuf);
+  free(cacheObjectBuf);
 }
 
 void setRequestHeaders(char *path, char *host, char* buf) {
@@ -180,8 +177,6 @@ void setRequestHeaders(char *path, char *host, char* buf) {
   // sprintf(buf, "%sRange: %s\r\n", buf, host);
 
   sprintf(buf, "%sConnection: close\r\n", buf);
-
-  // Idk if necessary when sending to server
   sprintf(buf, "%sProxy-Connection: close\r\n", buf);
 
   sprintf(buf, "%s\r\n", buf);
