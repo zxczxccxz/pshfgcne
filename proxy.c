@@ -83,6 +83,9 @@ void dealWithClient(int fd) {
     printf("Sending cached object=\n");
     Rio_writen(fd, cache.headers, cache.headersSize);
     Rio_writen(fd, cache.object, cache.objectSize);
+
+    free(cacheHeaderBuf);
+    free(cacheObjectBuf);
     return;
   }
 
@@ -117,10 +120,6 @@ void dealWithClient(int fd) {
       memcpy(cacheHeaderBufPtr, buf, bytesRead);
       cacheHeaderBufPtr += bytesRead;
     }
-    else {
-      free(cacheHeaderBuf);
-      free(cacheObjectBuf);
-    }
 
     if (strcmp(buf, "\r\n") == 0) {
       break;
@@ -138,10 +137,6 @@ void dealWithClient(int fd) {
       memcpy(cacheObjectBufPtr, buf, bytesRead);
       cacheObjectBufPtr += bytesRead;
     }
-    else {
-      free(cacheHeaderBuf);
-      free(cacheObjectBuf);
-    }
   }
 
   if (bufSize < MAX_OBJECT_SIZE) {
@@ -150,10 +145,10 @@ void dealWithClient(int fd) {
     cache.headersSize = headersSize;
     memcpy(cache.object, cacheObjectBuf, objectSize);
     cache.objectSize = objectSize;
-
-    free(cacheHeaderBuf);
-    free(cacheObjectBuf);
   }
+
+  free(cacheHeaderBuf);
+  free(cacheObjectBuf);
 
   Close(serverFD);
 }
