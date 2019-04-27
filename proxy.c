@@ -2,7 +2,17 @@
 #include "csapp.h"
 
 #define MAX_OBJECT_SIZE 7204056
+
+struct Cache {
+    char *uri;
+    char *headers;
+    char *object;
+    size_t headersSize;
+    size_t objectSize;
+};
+
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
+struct Cache cache = {NULL, NULL, NULL, 0, 0};
 
 void dealWithClient(int);
 void read_requesthdrs(rio_t *rp);
@@ -24,6 +34,9 @@ int main(int argc, char **argv) {
   }
 
   Signal(SIGPIPE, SIG_IGN);
+
+
+
   listenfd = Open_listenfd(argv[1]); // Quiting here is ok
   while (1) {
     clientlen = sizeof(clientaddr);
@@ -40,20 +53,36 @@ int main(int argc, char **argv) {
   }
 }
 
+void initCache() {
+  cache.uri = malloc(MAXLINE);
+}
+
 void dealWithClient(int fd) {
   int serverFD;
   char httpHeaderBuf[MAXLINE], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char hostname[MAXLINE], port[MAXLINE], path[MAXLINE];
   rio_t rio, rio_server;
-  size_t n;
+  size_t bytesRead = 0, headersSize = 0, objectSize = 0, bufSize = 0;
+  char *cacheHeaderBuf = malloc(MAX_OBJECT_SIZE), *cacheObjectBuf = malloc(MAX_OBJECT_SIZE);
+  char *cacheHeaderBufPtr = cacheHeaderBuf, *cacheObjectBufPtr = cacheObjectBuf;
+
 
   /* Read request line and headers */
   rio_readinitb(&rio, fd);
   if (!rio_readlineb(&rio, buf, MAXLINE)) {  //line:netp:doit:readrequest
     return;
   }
-  // (FINISHED)
+
   sscanf(buf, "%s %s %s", method, uri, version);
+
+  // CACHE
+  if (cache.uri != NULL && strcmp(cache.uri, uri) == 0) {
+    printf("Sending cached object=\n");
+    Rio_writen(fd, cache.headers, cache.headersSize);
+    Rio_writen(fd, cache.object, cache.objectSize);
+    return;
+  }
+
   printf("Method: %s\nURI: %s\nVersion: %s\n", method, uri, version);
   // Method must be GET (FINISHED)
   if (strcasecmp(method, "GET")) {
@@ -61,6 +90,7 @@ void dealWithClient(int fd) {
                 "Tiny does not implement this method");
     return;
   }
+
   // Read headers
   read_requesthdrs(&rio);
   // Parse uri
@@ -73,17 +103,53 @@ void dealWithClient(int fd) {
   rio_readinitb(&rio_server, serverFD);
 
   // Read in headers
-  while((n = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0)
+  while((bytesRead = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0)
   {
-    Rio_writen(fd, buf, n);
+    headersSize += bytesRead;
+    bufSize += bytesRead;
+
+    Rio_writen(fd, buf, bytesRead);
+
+    if (bufSize < MAX_OBJECT_SIZE) {
+      memcpy(cacheHeaderBufPtr, buf, bytesRead);
+      cacheHeaderBufPtr += bytesRead;
+    }
+    else {
+      free(cacheHeaderBuf);
+      free(cacheObjectBuf);
+    }
+
     if (strcmp(buf, "\r\n") == 0) {
       break;
     }
   }
 
   // Read in body
-  while((n = rio_readnb(&rio_server, buf, MAXLINE)) != 0) {
-    Rio_writen(fd, buf, n);
+  while((bytesRead = rio_readnb(&rio_server, buf, MAXLINE)) != 0) {
+    objectSize += bytesRead;
+    bufSize += bytesRead;
+
+    Rio_writen(fd, buf, bytesRead);
+
+    if (bufSize < MAX_OBJECT_SIZE) {
+      memcpy(cacheObjectBufPtr, buf, bytesRead);
+      cacheObjectBufPtr += bytesRead;
+    }
+    else {
+      free(cacheHeaderBuf);
+      free(cacheObjectBuf);
+    }
+  }
+
+  if (bufSize < MAX_OBJECT_SIZE) {
+    strcpy(cache.uri, uri);
+    strcpy(cache.headers, cacheHeaderBuf);
+    cache.headersSize = headersSize;
+    strcpy(cache.object, cacheObjectBuf);
+    cache.objectSize = objectSize;
+
+    free(cacheHeaderBuf);
+    free(cacheObjectBuf);
   }
 
   Close(serverFD);
