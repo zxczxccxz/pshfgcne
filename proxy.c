@@ -20,6 +20,7 @@ void parse_uri(char *uri, char *hostname, char *port, char *path);
 void clienterror(int fd, char *cause, char *errnum,
                  char *shortmsg, char *longmsg);
 void setRequestHeaders(char *path, char *host, char* buf);
+void initCache();
 
 int main(int argc, char **argv) {
   int listenfd, connfd;
@@ -35,7 +36,7 @@ int main(int argc, char **argv) {
 
   Signal(SIGPIPE, SIG_IGN);
 
-
+  initCache();
 
   listenfd = Open_listenfd(argv[1]); // Quiting here is ok
   while (1) {
@@ -55,6 +56,8 @@ int main(int argc, char **argv) {
 
 void initCache() {
   cache.uri = malloc(MAXLINE);
+  cache.headers = malloc(MAX_OBJECT_SIZE);
+  cache.object = malloc(MAX_OBJECT_SIZE);
 }
 
 void dealWithClient(int fd) {
