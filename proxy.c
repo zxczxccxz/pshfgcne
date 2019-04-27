@@ -21,6 +21,7 @@ void clienterror(int fd, char *cause, char *errnum,
                  char *shortmsg, char *longmsg);
 void setRequestHeaders(char *path, char *host, char* buf);
 void initCache();
+void clearCache();
 
 int main(int argc, char **argv) {
   int listenfd, connfd;
@@ -60,10 +61,20 @@ void initCache() {
   cache.object = malloc(MAX_OBJECT_SIZE);
 }
 
+void clearCache() {
+  free(cache.uri);
+  free(cache.headers);
+  free(cache.object);
+  cache.uri = malloc(MAXLINE);
+  cache.headers = malloc(MAX_OBJECT_SIZE);
+  cache.object = malloc(MAX_OBJECT_SIZE);
+}
+
 void dealWithClient(int fd) {
   int serverFD;
   char httpHeaderBuf[MAXLINE], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char hostname[MAXLINE], port[MAXLINE], path[MAXLINE];
+  char uriPortPath[MAXLINE];
   rio_t rio, rio_server;
   size_t bytesRead = 0, headersSize = 0, objectSize = 0, bufSize = 0;
   char *cacheHeaderBuf = malloc(MAX_OBJECT_SIZE), *cacheObjectBuf = malloc(MAX_OBJECT_SIZE);
@@ -78,18 +89,6 @@ void dealWithClient(int fd) {
 
   sscanf(buf, "%s %s %s", method, uri, version);
 
-  // CACHE
-  if (strcmp(cache.uri, uri) == 0) {
-    printf("Sending cached object=\n");
-    Rio_writen(fd, cache.headers, cache.headersSize);
-    Rio_writen(fd, cache.object, cache.objectSize);
-
-//    free(cacheHeaderBuf);
-//    free(cacheObjectBuf);
-    return;
-  }
-
-  printf("Method: %s\nURI: %s\nVersion: %s\n", method, uri, version);
   // Method must be GET (FINISHED)
   if (strcasecmp(method, "GET")) {
     clienterror(fd, method, "501", "Not Implemented",
@@ -101,6 +100,18 @@ void dealWithClient(int fd) {
   read_requesthdrs(&rio);
   // Parse uri
   parse_uri(uri, hostname, port, path);
+  snprintf(uriPortPath, sizeof(uriPortPath), "%s:%s%s", uri, port, path);
+
+  // CACHE
+  if (strcmp(cache.uri, uriPortPath) == 0) {
+    printf("Sending cached object\n");
+    Rio_writen(fd, cache.headers, cache.headersSize);
+    Rio_writen(fd, cache.object, cache.objectSize);
+
+//    free(cacheHeaderBuf);
+//    free(cacheObjectBuf);
+    return;
+  }
 
   // Make request to server
   serverFD = open_clientfd(hostname, port);
@@ -140,11 +151,17 @@ void dealWithClient(int fd) {
   }
 
   if (bufSize < MAX_OBJECT_SIZE) {
-    strcpy(cache.uri, uri);
+    clearCache();
+    strcpy(cache.uri, uriPortPath);
     strcpy(cache.headers, cacheHeaderBuf);
     cache.headersSize = headersSize;
     memcpy(cache.object, cacheObjectBuf, objectSize);
     cache.objectSize = objectSize;
+
+    printf("/// CACHE URI ///\n%s\n/// CACHE URI ///\n/// URI ///\n%s\n/// CACHE URI ///\n", cache.uri, uriPortPath);
+    printf("/// HEADERS BEGIN HERE ///\n%s\n/// HEADERS END HERE ///\n"
+           "/// OBJECT BEGINS HERE ///\n%s\n/// OBJECT ENDS HERE ///\n"
+           "%zu\n%zu\n", cache.headers, cache.object, cache.headersSize, cache.objectSize);
   }
 
 //  free(cacheHeaderBuf);
