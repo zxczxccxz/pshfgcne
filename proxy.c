@@ -148,7 +148,7 @@ void dealWithClient(int fd) {
     strcpy(cache.uri, uri);
     strcpy(cache.headers, cacheHeaderBuf);
     cache.headersSize = headersSize;
-    strcpy(cache.object, cacheObjectBuf);
+    memcpy(cache.object, cacheObjectBuf, objectSize);
     cache.objectSize = objectSize;
 
     free(cacheHeaderBuf);
